@@ -6,6 +6,7 @@ from locust.contrib.fasthttp import FastHttpUser
 from locust.runners import MasterRunner
 import m3u8
 import time
+import common.config
 
 
 @events.init.add_listener
@@ -65,8 +66,10 @@ class play_hls_stream(SequentialTaskSet):
         """
             # 1st gets the master playlist and selects the appropriate variant
         """
+        config = common.config.Config()
+
         # parse master url
-        master_url = self.user.host
+        master_url = config.randomurl()
         logging.debug(f"Master URL: '{master_url}'")
         base_url = os.path.dirname(master_url)
         logging.debug(f"Base URL: '{base_url}'")
