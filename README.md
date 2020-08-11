@@ -1,5 +1,15 @@
 # abrperf
 
+ABR Streaming load performance tester based on locust.io.
+
+Only HLS Live is supported at the moment.
+
+**Use directly against a cache**, becaus it will follow the redirect of a request router, 
+but it will not stick with the edge cache: all fragment request will be downloaded through 
+the request router (_FastHttpUser_ class follows the redirect, but it does not provides a way
+to query the new FQDN...)  
+
+
 ## Prerequisites
 
  - one master host
