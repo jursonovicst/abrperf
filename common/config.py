@@ -2,6 +2,7 @@ import random
 import csv
 import configparser
 import random
+import numpy as np
 
 
 class Config:
@@ -49,14 +50,29 @@ class HLSPlayerConfig(Config):
         self._avgseek = None
         if self._config.getboolean('hlsplayer', 'timeshift', fallback=False):
             self._avgseek = self._config.getint('hlsplayer', 'avgseek', fallback=60)
-
+            if self._avgseek < 0:
+                raise ValueError(f"avgseek must be non negative, got '{self._avgseek}'")
 
     def randomurl(self):
         return random.choices(self._urls, weights=self._weights, k=1)[0]
 
     def profilemethod(self):
+        """
+        Returns a function, which selects the appropriate profile (variant playlist) according to the config file. The
+        returned function requires two parameters: first argument is a list of objects to select, the second named
+        argument (key=) is a function, based on which the selection is done.
+        """
         if self._profileselection == 'max':
-            return lambda x, key: max(x, key=key)
+            return lambda population, key: max(population, key=key)
         if self._profileselection == 'min':
-            return lambda x, key: min(x, key=key)
-        return lambda x, key: random.choice(x)
+            return lambda population, key: min(population, key=key)
+        return lambda population, key: random.choice(population)
+
+    def gettimeshift(self):
+        """
+        Returns a random timeshift value for a user.
+        :return: timeshift in seconds.
+        """
+        if self._avgseek is None:
+            return 0
+        return np.random.poisson(self._avgseek)
