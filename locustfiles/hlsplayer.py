@@ -19,9 +19,15 @@ def on_locust_init(environment, **kwargs):
     resource.setrlimit(resource.RLIMIT_NOFILE, resource.getrlimit(resource.RLIMIT_NOFILE))
 
     if isinstance(environment.runner, MasterRunner):
-        logging.info("I'm on master node")
+        logging.debug("I'm on master node")
     else:
-        logging.info("I'm on a worker or standalone node")
+        logging.debug("I'm on a worker or standalone node")
+
+    # read configuration
+    environment.config = common.config.HLSPlayerConfig()
+
+    logging.info(f"Config loaded.")
+    logging.debug(f"Config: {environment.config}")
 
 
 class play_live(TaskSet):
@@ -38,18 +44,23 @@ class play_live(TaskSet):
 
         variant_url = self.user.host
         base_url = os.path.dirname(variant_url)
-        variant_m3u8 = self.client.get(variant_url)  # , name=f"playlist - variant")
+        variant_m3u8 = self.client.get(variant_url, name=f"{variant_url} V")
         parsed_variant_m3u8 = m3u8.M3U8(content=variant_m3u8.text, base_uri=base_url)
 
-        # get the latest segment
+        # get the latest segment according to the configured profile selection method
         segment = max(parsed_variant_m3u8.segments, key=lambda x: x.program_date_time)
-        #        logger.info(f"Segment URL: '{segment.absolute_uri}'")
-        seg_get = self.client.get(segment.absolute_uri)  # , name=f"segment")
+        seg_get = self.client.get(segment.absolute_uri, name=f"{variant_url} S")
 
         # calculate the remaining time till next segment fetch
-        self.wait_left = max(0, segment.duration - (time.time() - ts_start))
+        ts_stop = time.time()
+        if segment.duration - (ts_stop - ts_start) < 0:
+            logging.warning(f"segment over time request")
+        self.wait_left = max(0, segment.duration - (ts_stop - ts_start))
 
     def wait_time(self):
+        """
+        Schedule segment requests allways at segment time, compensate for segment downloads.
+        """
         return self.wait_left
 
 
@@ -61,31 +72,34 @@ class play_hls_stream(SequentialTaskSet):
      - In case, the 'play_live' TaskSet will terminate, it terminates itself.
     """
 
+    def on_start(self):
+        # load config
+        self._config = self.client.environment.config
+
     @task
     def master_playlist(self):
         """
             # 1st gets the master playlist and selects the appropriate variant
         """
-        config = common.config.Config()
 
         # parse master url
-        master_url = config.randomurl()
+        master_url = self._config.randomurl()
         logging.debug(f"Master URL: '{master_url}'")
         base_url = os.path.dirname(master_url)
         logging.debug(f"Base URL: '{base_url}'")
 
         # get master manifest
-        master_m3u8 = self.client.get(master_url)  # , name=f"playlist - master")
+        master_m3u8 = self.client.get(master_url, name=f"{master_url} M")
         parsed_master_m3u8 = m3u8.M3U8(content=master_m3u8.text, base_uri=base_url)
-
         #        logging.debug(f"EXT-X-VERSION: '{parsed_master_m3u8}'") TODO: check why this is not working
 
         if not parsed_master_m3u8.is_variant:
             logging.error(f"This is not a variant playlist: '{master_url}'")
             self.interrupt()
 
-        # Select bitrate
-        variant = max(parsed_master_m3u8.playlists, key=lambda playlist: playlist.stream_info.bandwidth)
+        # Select profile according to the profile selection config
+        profilemethod = self._parent.client.environment.config.profilemethod()
+        variant = profilemethod(parsed_master_m3u8.playlists, key=lambda playlist: playlist.stream_info.bandwidth)
 
         #        TODO: check why this is not working
         #        if parsed_master_m3u8.simple_attributes.playlist_type != 'EVENT':
