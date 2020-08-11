@@ -126,7 +126,7 @@ class PlayStream(SequentialTaskSet):
         base_url = os.path.dirname(master_url)
         logging.debug(f"Base URL: '{base_url}'")
 
-        # get master manifest
+        # get master manfest
         master_manifest = self.client.get(master_url, name=f"{master_url} M")
 
         if 'Content-Type' not in master_manifest.headers:
