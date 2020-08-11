@@ -3,10 +3,10 @@
 ## Prerequisites
 
  - one master host
- - one or more slave hosts (you can use the master as hosts as well, but I do not recommend it)
- - ssh access from the master hosts to the slaves hosts (I recommend pubkey auth)
+ - one or more slave hosts (you can use the master as slave, but I do not recommend it)
+ - ssh access from the master host to the slave hosts (I recommend pubkey auth)
 
-## Install (on master and slave hosts)
+## Install (on both, maater and slave)
 
 ### prerequisites to build locust
 ```bash
@@ -36,7 +36,7 @@ Configuration is only done on the master host, config files will be automaticall
  - list your streaming URLs in the _urllist.csv_
 ## RUN
 
-### in standalone mode without WebGUI
+### In standalone mode without WebGUI
 
 Create the 'urllist.csv' file in the root directory of this module, and list the URLs of master playlists and their 
 weights (positive integer) to request.
@@ -58,7 +58,7 @@ locust -f locustfiles/hlsplayer.py --host https://example.com --headless -u 10 -
 You MUST specify an URL in the --host attribute, otherwise the loadtester will not start, but the --host attribute will 
 be completel ignored.
  
-### in distributed mode with webgui
+### In distributed mode with webgui
 
 Just run the runme sh script from the ~/abrperf directory, this will copy the config files to the slaves, start
 the locust slaves, and start the locust master. 

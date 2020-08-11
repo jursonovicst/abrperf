@@ -1,2 +1,4 @@
-http://example.com/sport1/index.m3u8,10
-http://example2.com/sport2/index.msu8,1
+http://tr.stream.cdn.omd01.cscloud.tv/hls/SHOW_HD/index.m3u8, 10
+http://tr.stream.cdn.omd01.cscloud.tv/hls/CNN_TRKHD/index.m3u8, 10
+http://tr.stream.cdn.omd01.cscloud.tv/hls/SSPORT1/index.m3u8, 10
+http://tr.stream.cdn.omd01.cscloud.tv/hls/SSPORT2/index.m3u8, 10
