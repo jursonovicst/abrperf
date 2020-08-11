@@ -7,6 +7,7 @@ from locust.runners import MasterRunner
 import m3u8
 import time
 import common.config
+import datetime
 
 
 @events.init.add_listener
@@ -47,8 +48,11 @@ class play_live(TaskSet):
         variant_m3u8 = self.client.get(variant_url, name=f"{variant_url} V")
         parsed_variant_m3u8 = m3u8.M3U8(content=variant_m3u8.text, base_uri=base_url)
 
-        # get the latest segment according to the configured profile selection method
-        segment = max(parsed_variant_m3u8.segments, key=lambda x: x.program_date_time)
+        # get the timestamp of the latest segment
+        ts_latest = max(map(lambda segment: segment.program_date_time.timestamp(), parsed_variant_m3u8.segments))
+
+        # get the closest segment to the timeshifted program date time
+        segment = min(parsed_variant_m3u8.segments, key=lambda segment: abs(segment.program_date_time.timestamp() - (ts_latest - self.parent._timeshift)))
         seg_get = self.client.get(segment.absolute_uri, name=f"{variant_url} S")
 
         # calculate the remaining time till next segment fetch
@@ -75,6 +79,9 @@ class play_hls_stream(SequentialTaskSet):
     def on_start(self):
         # load config
         self._config = self.client.environment.config
+        self._timeshift = self._config.gettimeshift()
+        logging.info(
+            f"Starting Live HLS User with{'out' if self._timeshift == 0 else ' %ds' % self._timeshift} timeshift.")
 
     @task
     def master_playlist(self):
