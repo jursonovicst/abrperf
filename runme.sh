@@ -10,8 +10,8 @@ numslaves=2
 for host in ${slavehosts[*]}; do
   # sync config
   echo "syncing config with slave $host..."
-  scp ./abrperf.ini $host:abrperf/
-  scp ./urllist.csv $host:abrperf/
+  scp -q ./abrperf.ini $host:abrperf/
+  scp -q ./urllist.csv $host:abrperf/
 
   # start slaves
   ssh $host "rm -f ~/abrperf/slaves.pid"
@@ -21,14 +21,16 @@ for host in ${slavehosts[*]}; do
   done
 done
 
-# start master and wait for exit
 echo "starting master, terminate it with CTRL+C"
+echo "*********************************************"
+echo "* starting master, terminate it with CTRL+C *"
+echo "*********************************************"
 source venv/bin/activate && locust -f locustfiles/hlsplayer.py --master
 
 # termiante slaves
 for host in ${slavehosts[*]}; do
   echo "terminating still running workers on slave $host..."
-  ssh $host "cat ~/abrperf/slaves.pid | xargs kill -9"
+  ssh $host 'cat ~/abrperf/slaves.pid | xargs -I % kill -9 % 2>/dev/null'
 
 done
 
