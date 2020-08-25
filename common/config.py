@@ -8,7 +8,6 @@ import numpy as np
 class Config:
 
     def __init__(self):
-
         # read config
         self._config = configparser.ConfigParser()
         self._config.read('abrperf.ini')
@@ -22,38 +21,43 @@ class Config:
         return buff
 
 
-class HLSPlayerConfig(Config):
+class LivePlayerConfig(Config):
 
     def __init__(self):
         super().__init__()
 
-        # load URLs and weights
+        # load live URLs and weights
         self._urls = []
         self._weights = []
-        self.__urllist = self._config.get('hlsplayer', 'urllist', fallback='urllist.csv')
+        self._urllist = self._config.get('liveplayer', 'urllist', fallback='urllist.csv')
 
-        with open(self.__urllist, newline='') as csvfile:
+        with open(self._urllist, newline='') as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
 
             for row in spamreader:
                 self._urls.append(row[0])
                 if not row[1].strip().isdigit():
-                    raise ValueError(f"In the {self.__urllist} csv, I expect positive integers, but got '{row[1]}'")
+                    raise ValueError(f"In the {self._urllist} csv, I expect positive integers, but got '{row[1]}'")
                 self._weights.append(int(row[1]))
 
-        # load profileselection
-        self._profileselection = self._config.get('hlsplayer', 'profileselection', fallback='max')
+        # load profile selection
+        self._profileselection = self._config.get('liveplayer', 'profileselection', fallback='max')
         if self._profileselection not in ['max', 'min', 'random']:
             raise SyntaxError(f"Profileselection '{self._profileselection}' is not supported!")
 
         # load timeshift
-        self._avgseek = None
-        if self._config.getboolean('hlsplayer', 'timeshift', fallback=False):
-            self._avgseek = self._config.getint('hlsplayer', 'avgseek', fallback=60)
-            if self._avgseek < 0:
-                raise ValueError(f"avgseek must be non negative, got '{self._avgseek}'")
+        self._timeshift = None
+        if self._config.getboolean('liveplayer', 'timeshift', fallback=False):
+            self._timeshift = self._config.getint('liveplayer', 'avgseek', fallback=60)
+            if self._timeshift < 0:
+                raise ValueError(f"Typical seek time must be non negative, got '{self._timeshift}'")
 
-    def randomurl(self):
+    def getrandomurl(self):
+        """
+        Returns a randomly chosen URL from the urllist.csv according to the weights specified.
+        :return: A randomly chosen URL
+        :rtype: str
+        """
         return random.choices(self._urls, weights=self._weights, k=1)[0]
 
     def profilemethod(self):
@@ -71,8 +75,9 @@ class HLSPlayerConfig(Config):
     def gettimeshift(self):
         """
         Returns a random timeshift value for a user.
-        :return: timeshift in seconds.
+        :return: Timeshift in seconds
+        :rtype: int
         """
-        if self._avgseek is None:
+        if self._timeshift is None:
             return 0
-        return np.random.poisson(self._avgseek)
+        return np.random.poisson(self._timeshift)
