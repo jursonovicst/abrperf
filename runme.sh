@@ -17,7 +17,7 @@ for host in ${slavehosts[*]}; do
   ssh $host "rm -f ~/abrperf/slaves.pid"
   for i in $(seq 1 $numslaves); do
     echo "starting locust worker $i on slave $host..."
-    ssh $host "cd ~/abrperf/ && source venv/bin/activate && nohup locust -f locustfiles/hlsplayer.py --worker --master-host=$masterhost &>/dev/null </dev/null & echo \$! >> slaves.pid"
+    ssh $host "cd ~/abrperf; source venv/bin/activate; nohup locust -f locustfiles/hlsplayer.py --worker --master-host=$masterhost &>/dev/null </dev/null & echo \$! >> slaves.pid"
   done
 done
 
