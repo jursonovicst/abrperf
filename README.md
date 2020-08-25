@@ -18,9 +18,9 @@ to query the new FQDN...)
 
 ## Install (on both, maater and slave)
 
-### prerequisites to build locust
+### prerequisites
 ```bash
-yum install python3-devel
+yum install python3 python3-devel
 ```
 
 ### clone and create a venv
@@ -32,6 +32,7 @@ cd abrperf
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+deactivate
 ```
 
 ## Configure
