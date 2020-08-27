@@ -25,7 +25,7 @@ echo "starting master, terminate it with CTRL+C"
 echo "*********************************************"
 echo "* starting master, terminate it with CTRL+C *"
 echo "*********************************************"
-source venv/bin/activate && locust -f locustfiles/hlsplayer.py --master
+source venv/bin/activate && locust -f locustfiles/hlsplayer.py --master --web-host $masterhost
 
 # termiante slaves
 for host in ${slavehosts[*]}; do
