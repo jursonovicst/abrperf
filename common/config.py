@@ -23,10 +23,6 @@ class Config:
         with open(self._urllist, newline='', ) as csvfile:
             lines = csv.reader(csvfile, delimiter=',', quotechar='"')
 
-            if lines.line_num == 0:
-                raise SyntaxError(
-                    f"Empty urllist file '{self._urllist}'!")
-
             for row in lines:
                 if len(row) != 2:
                     raise SyntaxError(f"Invalid urllist file '{self._urllist}' content: '{', '.join(row)}'!")
