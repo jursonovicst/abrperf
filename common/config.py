@@ -34,6 +34,10 @@ class Config:
 
                 self._weights.append(int(row[1]))
 
+        if len(self._urls) == 0:
+            raise SyntaxError(
+                f"Empty urllist file '{self._urllist}'!")
+
         # load profile selection
         self._profileselection = self._config.get('global', 'profileselection', fallback='max')
         if self._profileselection not in ['max', 'min', 'random']:
