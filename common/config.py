@@ -12,26 +12,12 @@ class Config:
         self._config = configparser.ConfigParser()
         self._config.read('abrperf.ini')
 
-    def __str__(self):
-        buff = ''
-        for section in self._config.sections():
-            buff += f"[{section}]\n"
-            for item in self._config[section]:
-                buff += f"{item}: {self._config[section][item]}\n"
-        return buff
-
-
-class LivePlayerConfig(Config):
-
-    def __init__(self):
-        super().__init__()
-
         # load live URLs and weights
         self._urls = []
         self._weights = []
-        self._urllist = self._config.get('liveplayer', 'urllist', fallback='urllist.csv')
+        self._urllist = self._config.get('global', 'urllist', fallback='urllist.csv')
 
-        with open(self._urllist, newline='') as csvfile:
+        with open(self._urllist, newline='', ) as csvfile:
             spamreader = csv.reader(csvfile, delimiter=',', quotechar='"')
 
             for row in spamreader:
@@ -41,16 +27,17 @@ class LivePlayerConfig(Config):
                 self._weights.append(int(row[1]))
 
         # load profile selection
-        self._profileselection = self._config.get('liveplayer', 'profileselection', fallback='max')
+        self._profileselection = self._config.get('global', 'profileselection', fallback='max')
         if self._profileselection not in ['max', 'min', 'random']:
             raise SyntaxError(f"Profileselection '{self._profileselection}' is not supported!")
 
-        # load timeshift
-        self._timeshift = None
-        if self._config.getboolean('liveplayer', 'timeshift', fallback=False):
-            self._timeshift = self._config.getint('liveplayer', 'avgseek', fallback=60)
-            if self._timeshift < 0:
-                raise ValueError(f"Typical seek time must be non negative, got '{self._timeshift}'")
+    def __str__(self):
+        buff = ''
+        for section in self._config.sections():
+            buff += f"[{section}]\n"
+            for item in self._config[section]:
+                buff += f"{item}: {self._config[section][item]}\n"
+        return buff
 
     def getrandomurl(self):
         """
@@ -71,6 +58,19 @@ class LivePlayerConfig(Config):
         if self._profileselection == 'min':
             return lambda population, key: min(population, key=key)
         return lambda population, key: random.choice(population)
+
+
+class LivePlayerConfig(Config):
+
+    def __init__(self):
+        super().__init__()
+
+        # load timeshift
+        self._timeshift = None
+        if self._config.getboolean('liveplayer', 'timeshift', fallback=False):
+            self._timeshift = self._config.getint('liveplayer', 'avgseek', fallback=60)
+            if self._timeshift < 0:
+                raise ValueError(f"Typical seek time must be non negative, got '{self._timeshift}'")
 
     def gettimeshift(self):
         """
