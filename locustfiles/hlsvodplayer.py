@@ -1,7 +1,7 @@
 import os
 import logging
 import resource
-from locust import TaskSet, task, between, SequentialTaskSet, events
+from locust import TaskSet, task, constant, SequentialTaskSet, events
 from locust.contrib.fasthttp import FastHttpUser, FastResponse
 from locust.runners import MasterRunner
 import m3u8
@@ -24,9 +24,13 @@ def on_locust_init(environment, **kwargs):
     else:
         logging.debug(f"I'm a worker or standalone on {platform.node()} node")
 
-    # read configuration
-    environment.config = Config()
-    logging.info(f"Config loaded.")
+    # read configuration (worker level)
+    try:
+        environment.config = Config()
+        logging.info(f"Config loaded.")
+    except Exception as e:
+        logging.error(e)
+        exit(-1)
 
 
 class PlayVoD(TaskSet):
@@ -41,13 +45,13 @@ class PlayVoD(TaskSet):
     def play(self):
         ts_start = time.time()
 
-        if len(self.user.host) == 0:
-            self.interrupt()
+        if len(self.parent._m3u8.segments) == 0:
+            self.interrupt(reschedule=False)
 
-        segment = self.user.host.pop(-1)
-        logging.debug(f"Segment URL: '{segment.title}'")
+        segment = self.parent._m3u8.segments.pop(0)
+        logging.debug(f"Segment URL: '{segment.uri}'")
 
-        seg_get = self.client.get(segment.absolute_uri, name=f"{segment.absolute_uri} S")
+        seg_get = self.client.get(segment.absolute_uri, name=f"{segment.uri}")
 
         # calculate the remaining time till next segment fetch
         ts_stop = time.time()
@@ -66,10 +70,19 @@ class PlayStream(SequentialTaskSet):
     """
     Starts a streaming session by
      - requesting the master playlist and selecting a variant, then
-     - starting a 'PlayLive' TaskSet for live streaming, or
-     - starting a 'PlayVoD' TaskSet for VoD streaming.
+     - requesting the variabt playlist and
+     - requesting all the segments.
      - In case, a TaskSet will terminate, it terminates itself.s
     """
+
+    wait_left = 0
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._config = None
+        self._manifest_url = ''
+        self._base_url = ''
+        self._m3u8 = None
 
     def on_start(self):
         """
@@ -82,88 +95,57 @@ class PlayStream(SequentialTaskSet):
         self._config = self.client.environment.config
         logging.info(f"Starting streaming client.")
 
+        # get manifest url
+        self._manifest_url = self._config.getrandomurl()
+        logging.debug(f"Playlist URL: '{self._manifest_url}'")
+        self._base_url = os.path.dirname(self._manifest_url)
+
     @task
-    def master_playlist(self):
+    def manifest(self):
         """
-            # 1st gets the master playlist and selects the appropriate variant_playlist
+        1st parse the manifest, in case of a master manifest, reparse it.
         """
-        # parse master url
-        master_url = self._config.getrandomurl()
-        logging.debug(f"Master URL: '{master_url}'")
-        base_url = os.path.dirname(master_url)
-        logging.debug(f"Base URL: '{base_url}'")
+        # get manifest
+        manifest = self.client.get(self._manifest_url, name=f"{os.path.basename(self._manifest_url)}")
 
-        # get master manfest
-        master_manifest = self.client.get(master_url, name=f"{master_url} M")
+        if not isinstance(manifest, FastResponse):
+            logging.error(f"Error accessing playlist: {vars(manifest)}")
+            self.interrupt(reschedule=False)
 
-        if not isinstance(master_manifest, FastResponse):
-            logging.error(f"Error accesing master playlist: {vars(master_manifest)}")
-            self.interrupt()
-
-        if 'Content-Type' not in master_manifest.headers:
+        if 'Content-Type' not in manifest.headers:
             logging.error(f"No Content-Type received, terminating streaming client.")
-            self.interrupt()
+            self.interrupt(reschedule=False)
 
-        if master_manifest.headers['Content-Type'] != 'application/vnd.apple.mpegurl':
+        if manifest.headers['Content-Type'] != 'application/vnd.apple.mpegurl':
             # unknown streaming
-            logging.error(f"Unknown stream with Content-Type '{master_manifest.headers['Content-Type']}', terminating.")
-            self.interrupt()
+            logging.error(f"Unknown stream with Content-Type '{manifest.headers['Content-Type']}', terminating.")
+            self.interrupt(reschedule=False)
 
-        # HLS -- m3u8!
-        logging.debug(f"HLS stream detected ({master_manifest.headers['Content-Type']})")
-
-        # parse playlist
-        master_m3u8 = m3u8.M3U8(content=master_manifest.text, base_uri=base_url)
+        # it must be a m3u8 object, parse
+        self._m3u8 = m3u8.M3U8(content=manifest.text, base_uri=self._base_url)
         #        logging.debug(f"EXT-X-VERSION: '{master_m3u8}'") TODO: check why this is not working
 
-        if not master_m3u8.is_variant:
-            logging.error(f"No variant playlist detected: '{master_url}'")
-            self.interrupt()
+        if self._m3u8.is_variant:
+            logging.debug(f"Master playlist detected: '{self._manifest_url}'")
 
-        # Select profile according to the profile selection config
-        profilemethod = self._parent.client.environment.config.profilemethod()
-        variant_playlist = profilemethod(master_m3u8.playlists, key=lambda playlist: playlist.stream_info.bandwidth)
-        logging.debug(
-            f"profile {variant_playlist.stream_info.program_id} selected (bandwidth: {variant_playlist.stream_info.bandwidth}, resolution: {variant_playlist.stream_info.resolution})")
+            # Select profile according to the profile selection config
+            profilemethod = self._config.profilemethod()
+            playlist = profilemethod(self._m3u8.playlists, key=lambda pl: pl.stream_info.bandwidth)
+            logging.info(
+                f"Profile {playlist.stream_info.program_id} selected (bandwidth: {playlist.stream_info.bandwidth}, resolution: {playlist.stream_info.resolution})")
 
-        # update locust User with the new URL
-        self.user.host = f"{base_url}/{variant_playlist.uri}"
+            self._manifest_url = f"{self._base_url}/{playlist.uri}"
+            logging.debug(f"Selected variant: {self._manifest_url}")
 
-    @task
-    def variant_playlist(self):
-        """
-            # 2nd check the variant playlist
-        """
+            # parse variant playlist
+            self.manifest()
 
-        variant_url = self.user.host
-        logging.debug(f"Variant URL: '{variant_url}'")
-        base_url = os.path.dirname(variant_url)
+        else:
+            logging.debug(f"Variant playlist detected: '{self._manifest_url}'")
 
-        # get variant manifest
-        variant_manifest = self.client.get(variant_url, name=f"{variant_url} V")
-
-        if not isinstance(variant_manifest, FastResponse):
-            logging.error(f"Error accesing variant playlist: {vars(variant_manifest)}")
-            self.interrupt()
-
-        if 'Content-Type' not in variant_manifest.headers:
-            logging.error(f"No Content-Type received, terminating streaming client.")
-            self.interrupt()
-
-        if variant_manifest.headers['Content-Type'] != 'application/vnd.apple.mpegurl':
-            logging.error(
-                f"Unsupported Content-Type received: {variant_manifest.headers['Content-Type']}, terminating streaming client.")
-            self.interrupt()
-
-        variant_m3u8 = m3u8.M3U8(content=variant_manifest.text, base_uri=base_url)
-
-        if variant_m3u8.playlist_type.upper() != 'VOD':
-            logging.error(f"Unsupported playlist type detected: '{variant_m3u8.playlist_type}', terminating.")
-            self.interrupt()
-
-        # update locust User with the new URL
-        self.user.host = variant_m3u8.segments
-
+    """
+    2nd: get the segments
+    """
     tasks = [PlayVoD]
 
     @task
@@ -171,11 +153,17 @@ class PlayStream(SequentialTaskSet):
         """
         3rd if streaming ends, terminates
         """
-        self.interrupt()
+        self.interrupt(reschedule=False)
+
+    def wait_time(self):
+        """
+        Do not wait, go ahead.
+        """
+        return self.wait_left
 
 
 class MyLocust(FastHttpUser):
     tasks = [PlayStream]
 
-    # we need to specify this, but we will not use it
-    wait_time = between(0, 0)
+    # we need to specify this, but it will be ignored
+    wait_time = constant(0)
