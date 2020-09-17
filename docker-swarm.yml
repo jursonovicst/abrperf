@@ -44,9 +44,6 @@ services:
     extra_hosts:
       - "es-ls-03:169.254.48.155"
 
-    # keep the number of workers constant, restart if it terminates of fails
-    restart: unless-stopped
-
     # it will connect locahost:5557 for master
     command: -f locustfiles/hlsvodplayer.py --worker
 
