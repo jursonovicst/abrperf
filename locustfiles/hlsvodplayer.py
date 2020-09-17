@@ -51,7 +51,9 @@ class PlayVoD(TaskSet):
 
         segment = self.parent._m3u8.segments.pop(0)
         self.user.logger.debug(f"Get segment: '{segment.uri}'")
-        self.client.get(segment.absolute_uri, name=f"{segment.uri}")
+        self.client.get(segment.absolute_uri,
+                        name=f"{segment.uri}",
+                        headers={'User-Agent': f"abrperf/1.0 ({self.user.name})"})
 
         # calculate the remaining time till next segment fetch
         ts_stop = time.time()
@@ -109,7 +111,9 @@ class PlayStream(SequentialTaskSet):
         # get manifest
         self.user.logger.debug(f"Get manifest '{self._manifest_url}'")
         base_url = os.path.dirname(self._manifest_url)
-        manifest = self.client.get(self._manifest_url, name=f"{os.path.basename(self._manifest_url)}")
+        manifest = self.client.get(self._manifest_url,
+                                   name=f"{os.path.basename(self._manifest_url)}",
+                                   headers={'User-Agent': f"abrperf/1.0 ({self.user.name})"})
 
         if not isinstance(manifest, FastResponse):
             self.user.logger.error(f"Error accessing playlist: {vars(manifest)}")
@@ -171,11 +175,16 @@ class MyLocust(FastHttpUser):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._logger = None
+        self._name = names.get_full_name()
+        self._logger = logging.getLogger(self.name)
 
     @property
     def logger(self):
         return self._logger
+
+    @property
+    def name(self):
+        return self._name
 
     def on_start(self):
         """
@@ -184,7 +193,6 @@ class MyLocust(FastHttpUser):
         is called when a simulated user starts executing that TaskSet, and on_stop is called when the simulated user
         stops executing that TaskSet (when interrupt() is called, or the user is killed).
         """
-        self._logger = logging.getLogger(names.get_full_name())
         self.logger.info(f"User spawned.")
 
     def on_stop(self):
