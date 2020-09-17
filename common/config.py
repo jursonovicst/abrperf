@@ -3,6 +3,7 @@ import csv
 import random
 import numpy as np
 import os
+from logging import Logger
 
 
 class Config:
@@ -10,12 +11,17 @@ class Config:
     Basic config file
     """
 
-    def __init__(self):
+    def __init__(self, logger: Logger):
         # load URLs and weights
         self._urls = []
         self._weights = []
 
-        self._urllist = os.getenv('URLLIST', 'urllist.csv')
+        if 'URLLIST' in os.environ:
+            self._urllist = os.getenv('URLLIST')
+            logger.debug(f"Using '{self._urllist}' from URLLIST env variable.")
+        else:
+            self._urllist = 'urllist.csv'
+            logger.info(f"URLLIST not defiend, using '{self._urllist}'.")
 
         with open(self._urllist, newline='', ) as csvfile:
             lines = csv.reader(csvfile, delimiter=',', quotechar='"')
@@ -30,15 +36,21 @@ class Config:
                         f"Positive integers expected in urllist file '{self._urllist}', but got '{row[1]}'!")
 
                 self._weights.append(int(row[1]))
+                logger.debug(f"URL '{str(row[0])}' added with weight {int(row[1])}")
 
         if len(self._urls) == 0:
             raise SyntaxError(
                 f"Empty urllist file '{self._urllist}'!")
 
         # load profile selection
-        self._profileselection = os.getenv('PROFILESELECTION', 'random')
-        if self._profileselection not in ['max', 'min', 'random']:
-            raise SyntaxError(f"Profileselection '{self._profileselection}' is not supported!")
+        if 'PROFILESELECTION' in os.environ:
+            self._profileselection = os.getenv('PROFILESELECTION')
+            if self._profileselection not in ['max', 'min', 'random']:
+                raise SyntaxError(f"Profileselection '{self._profileselection}' is not supported!")
+            logger.debug(f"Using '{self._profileselection}' from PROFILESELECTION env variable.")
+        else:
+            self._profileselection = 'random'
+            logger.info(f"PROFILESELECTION not defiend, using '{self._urllist}'.")
 
     def getrandomurl(self) -> str:
         """
