@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  locust-master:
+    image: localhost:5000/abrperf
+
+    # one master with some CPU reserved for it
+    deploy:
+      replicas: 1
+      resources:
+        reservations:
+          cpus: '2'
+
+    # use overlay network for management
+    networks:
+     - locust-mgmt
+
+    extra_hosts:
+      - "es-ls-03:169.254.48.155"
+
+    # expose WebUI and inter locust communication
+    ports:
+     - "8089:8089"
+     - "5557:5557"
+
+    # -H is mandatory but it will be ignored
+    command: -f locustfiles/hlsvodplayer.py --master -H http://it.will.be.ignored
+  
+  locust-worker:
+    image: localhost:5000/abrperf
+
+    # run 2 workers per CPU, make sure, there is enough CPU for the worker
+    deploy:
+      replicas: 1500
+      resources:
+        reservations:
+          cpus: '0.5'
+
+    # use host's network for high performance
+    networks:
+     - locust-perf
+
+    # avoid DNS storm, list the target FQDNs if possible
+    extra_hosts:
+      - "es-ls-03:169.254.48.155"
+
+    # keep the number of workers constant, restart if it terminates of fails
+    restart: unless-stopped
+
+    # it will connect locahost:5557 for master
+    command: -f locustfiles/hlsvodplayer.py --worker
+
+
+networks:
+  locust-mgmt:
+    driver: overlay
+  locust-perf:
+    external: true
+    name: host
