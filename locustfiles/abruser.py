@@ -32,19 +32,16 @@ def on_locust_init(environment, **kwargs):
         resource.setrlimit(resource.RLIMIT_NOFILE, resource.getrlimit(resource.RLIMIT_NOFILE))
 
         try:
-            # configuration
-            environment.config = configparser.ConfigParser()
-            environment.config.read(os.getenv('ABRUSER_CONFIG', default='abruser.ini'))
-
             # url reader
-            environment.urllist = URLList(environment.config['general'].get('urllist'))
+            environment.urllist = URLList(os.getenv('URLLIST', default='urllist.csv'))
 
             # profile selector
-            if environment.config['abr']['profile_selection'] == 'min':
+            method = os.getenv('PROFILESELECTION', 'rnd')
+            if method == 'min':
                 environment.profileselector = MinProfileSelector()
-            elif environment.config['abr']['profile_selection'] == 'max':
+            elif method == 'max':
                 environment.profileselector = MaxProfileSelector()
-            elif environment.config['abr']['profile_selection'] == 'abr':
+            elif method == 'abr':
                 environment.profileselector = ABRProfileSelector()
             else:
                 environment.profileselector = ProfileSelector()
