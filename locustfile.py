@@ -15,7 +15,7 @@ import gevent
 from locust.env import Environment
 from locust.stats import stats_printer, stats_history
 from locust.log import setup_logging
-from common import ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, HLSLive, URLList
+from common import ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, URLList
 
 
 @events.init.add_listener
