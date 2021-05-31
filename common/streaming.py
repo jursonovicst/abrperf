@@ -23,6 +23,7 @@ class Streaming(TaskSet):
         with self.client.get(
                 f"{manifest_url}&uid=LOCUST_{self.user.name.replace(' ', '_')}",
                 name=manifest_url,
+                headers={'User-Agent': 'locust'},
                 catch_response=True) as response_master:
             response_master.raise_for_status()
 
@@ -55,6 +56,7 @@ class Streaming(TaskSet):
                 # get variant manifest
                 self.user.logger.debug(f"GET '{self.user.base_url}/{self.variant_pls.uri}'")
                 with self.client.get(f"{self.user.base_url}/{self.variant_pls.uri}",
+                                     headers={'User-Agent': 'locust'},
                                      catch_response=True) as response_media:
                     response_media.raise_for_status()
 
@@ -88,6 +90,7 @@ class Streaming(TaskSet):
             # get variant manifest
             self.user.logger.debug(f"GET '{self.user.base_url}/{self.user.variant_pls.uri}'")
             with self.client.get(f"{self.user.base_url}/{self.user.variant_pls.uri}",
+                                 headers={'User-Agent': 'locust'},
                                  catch_response=True) as response:
                 response.raise_for_status()
 
@@ -110,6 +113,7 @@ class Streaming(TaskSet):
         # fetch the segment
         self.user.logger.debug(f"GET '{segment.absolute_uri}'")
         with self.client.get(segment.absolute_uri,
+                             headers={'User-Agent': 'locust'},
                              catch_response=True) as response:
             response.raise_for_status()
 

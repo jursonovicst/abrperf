@@ -50,13 +50,6 @@ def on_locust_init(environment, **kwargs):
 
 
 class ABRUser(FastHttpUser):
-    name = ""
-    manifest = None
-    base_url = None
-    throughput = None
-    logger = None
-    variant = None
-    variant_pls = None
 
     def on_start(self):
         """
@@ -66,8 +59,15 @@ class ABRUser(FastHttpUser):
         stops executing that TaskSet (when interrupt() is called, or the user is killed).
         """
 
-        # create uniq logger
         self.name = names.get_full_name()
+        self.manifest = None
+        self.base_url = None
+        self.throughput = None
+        self.logger = None
+        self.variant = None
+        self.variant_pls = None
+
+        # create uniq logger
         self.logger = logging.getLogger(self.name)
 
     # we need to specify these, but they will be ignored
