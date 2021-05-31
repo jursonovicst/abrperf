@@ -4,7 +4,6 @@ import time
 import os
 from urllib.error import HTTPError
 
-
 class Streaming(TaskSet):
 
     def on_start(self):
@@ -15,7 +14,6 @@ class Streaming(TaskSet):
         stops executing that TaskSet (when interrupt() is called, or the user is killed).
         """
 
-#        try:
         # get a manifest url
         manifest_url = f"{self.client.environment.urllist.geturl()}&uid=LOCUST_{self.user.name.replace(' ', '_')}"
         self.user.logger.debug(f"URL to open: {manifest_url}")
@@ -26,7 +24,7 @@ class Streaming(TaskSet):
             response_master.raise_for_status()
 
             # measure throughput with manifest
-            self.user.throughput = len(response_master) * 8 / response_master.request_meta['response_time'] * 1000
+            self.user.throughput = len(response_master) * 8 / response_master._request_meta['response_time'] * 1000
 
             if 'Content-Type' not in response_master.headers:
                 raise Exception(f"No Content-Type received, terminating player.")
@@ -95,8 +93,7 @@ class Streaming(TaskSet):
             if not self.user._firstrun:
                 # get variant manifest
                 self.user.logger.debug(f"GET '{self.user.base_url}/{self.user.variant_pls.uri}'")
-                with self.client.get(f"{self.user.base_url}/{self.user.variant_pls.uri}",
-                                     catch_response=True) as response:
+                with self.client.get(f"{self.user.base_url}/{self.user.variant_pls.uri}", catch_response=True) as response:
                     response.raise_for_status()
 
                     # parse variant
@@ -121,7 +118,7 @@ class Streaming(TaskSet):
                 response.raise_for_status()
 
                 # measure throughput
-                self.user.throughput = len(response) * 8 / response.request_meta['response_time'] * 1000
+                self.user.throughput = len(response) * 8 / response._request_meta['response_time'] * 1000
 
                 # select the next variant playlist
                 self.user.variant_pls = self.client.environment.profileselector.select(self.user.manifest.playlists,
