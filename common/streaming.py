@@ -26,7 +26,7 @@ class Streaming(TaskSet):
             response_master.raise_for_status()
 
             # measure throughput with manifest
-            self.user.throughput = len(response_master) * 8 / response_master._request_meta['response_time'] * 1000
+            self.user.throughput = len(response_master) * 8 / response_master.request_meta['response_time'] * 1000
 
             if 'Content-Type' not in response_master.headers:
                 raise Exception(f"No Content-Type received, terminating player.")
@@ -121,7 +121,7 @@ class Streaming(TaskSet):
                 response.raise_for_status()
 
                 # measure throughput
-                self.user.throughput = len(response) * 8 / response._request_meta['response_time'] * 1000
+                self.user.throughput = len(response) * 8 / response.request_meta['response_time'] * 1000
 
                 # select the next variant playlist
                 self.user.variant_pls = self.client.environment.profileselector.select(self.user.manifest.playlists,
