@@ -2,11 +2,11 @@ from locust import TaskSet, task
 import m3u8
 import time
 import os
+import platform
 from urllib.error import HTTPError
 
 
 class Streaming(TaskSet):
-
     def on_start(self):
         """
         User and TaskSet classes can declare an on_start method and/or on_stop method. A User will call it’s on_start
@@ -14,6 +14,8 @@ class Streaming(TaskSet):
         is called when a simulated user starts executing that TaskSet, and on_stop is called when the simulated user
         stops executing that TaskSet (when interrupt() is called, or the user is killed).
         """
+
+
         # get a manifest url
         manifest_url = self.client.environment.urllist.geturl()
         self.user.base_url = os.path.dirname(manifest_url)
@@ -21,9 +23,9 @@ class Streaming(TaskSet):
 
         # get the master manifest, add user info
         with self.client.get(
-                f"{manifest_url}&uid=LOCUST_{self.user.name.replace(' ', '_')}",
+                f"{manifest_url}&uid={self.user.name.replace(' ', '_')}",
                 name=manifest_url,
-                headers={'User-Agent': 'locust'},
+                headers={'User-Agent': f"Locust/1.0 ({platform.version()})"},
                 catch_response=True) as response_master:
             response_master.raise_for_status()
 
@@ -56,7 +58,7 @@ class Streaming(TaskSet):
                 # get variant manifest
                 self.user.logger.debug(f"GET '{self.user.base_url}/{self.variant_pls.uri}'")
                 with self.client.get(f"{self.user.base_url}/{self.variant_pls.uri}",
-                                     headers={'User-Agent': 'locust'},
+                                     headers={'User-Agent': f"Locust/1.0 ({platform.version()})"},
                                      catch_response=True) as response_media:
                     response_media.raise_for_status()
 
@@ -90,7 +92,7 @@ class Streaming(TaskSet):
             # get variant manifest
             self.user.logger.debug(f"GET '{self.user.base_url}/{self.user.variant_pls.uri}'")
             with self.client.get(f"{self.user.base_url}/{self.user.variant_pls.uri}",
-                                 headers={'User-Agent': 'locust'},
+                                 headers={'User-Agent': f"Locust/1.0 ({platform.version()})"},
                                  catch_response=True) as response:
                 response.raise_for_status()
 
@@ -113,7 +115,7 @@ class Streaming(TaskSet):
         # fetch the segment
         self.user.logger.debug(f"GET '{segment.absolute_uri}'")
         with self.client.get(segment.absolute_uri,
-                             headers={'User-Agent': 'locust'},
+                             headers={'User-Agent': f"Locust/1.0 ({platform.version()})"},
                              catch_response=True) as response:
             response.raise_for_status()
 
