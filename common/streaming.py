@@ -36,7 +36,7 @@ class Streaming(TaskSet):
                 response_master.failure(f"no Content-Type received")
                 self.interrupt()
 
-            if response_master.headers['Content-Type'] == 'application/x-mpegURL':
+            if response_master.headers['Content-Type'] in ['application/x-mpegURL', 'application/mpegurl']:
                 # HLS -- m3u8!
 
                 # parse playlist
