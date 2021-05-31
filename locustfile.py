@@ -1,10 +1,7 @@
 import os
-import configparser
 import logging
 import resource
 import names
-import m3u8
-from urllib.error import HTTPError
 import platform
 from common import Streaming
 
@@ -73,16 +70,12 @@ class ABRUser(FastHttpUser):
         self.name = names.get_full_name()
         self.logger = logging.getLogger(self.name)
 
-        self.logger.debug(f"user spawned")
-
-    def on_stop(self):
-        self.logger.debug(f"user terminated")
-
     # we need to specify these, but they will be ignored
     wait_time = constant(0)
     host = "http://this.will.be.ignored"
 
     tasks = [Streaming]
+
 
 # for testing
 if __name__ == "__main__":
