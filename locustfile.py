@@ -6,6 +6,7 @@ import names
 import m3u8
 from urllib.error import HTTPError
 import platform
+from common import Streaming
 
 from locust import constant, events
 from locust.contrib.fasthttp import FastHttpUser
@@ -52,6 +53,7 @@ def on_locust_init(environment, **kwargs):
 
 
 class ABRUser(FastHttpUser):
+    name = ""
     manifest = None
     base_url = None
     throughput = None
@@ -68,66 +70,8 @@ class ABRUser(FastHttpUser):
         """
 
         # create uniq logger
-        name = names.get_full_name()
-        self.logger = logging.getLogger(name)
-
-        try:
-            # get a manifest url
-            manifest_url = f"{self.environment.urllist.geturl()}&uid=LOCUST_{name.replace(' ', '_')}"
-            self.logger.debug(f"URL to open: {manifest_url}")
-            self.base_url = os.path.dirname(manifest_url)
-
-            # get the master manifest
-            with self.client.get(manifest_url, catch_response=True) as response_master:
-                response_master.raise_for_status()
-
-                # measure throughput with manifest
-                self.throughput = len(response_master) * 8 / response_master._request_meta['response_time'] * 1000
-
-                if 'Content-Type' not in response_master.headers:
-                    raise Exception(f"No Content-Type received, terminating player.")
-
-                if response_master.headers['Content-Type'] == 'application/x-mpegURL':
-                    # HLS -- m3u8!
-
-                    # parse playlist
-                    self.manifest = m3u8.M3U8(content=response_master.text, base_uri=self.base_url)
-                    self.logger.debug(
-                        f"HLS Manifest v{self.manifest.version}, type: '{self.manifest.playlist_type}' detected")
-                    #
-                    if not self.manifest.is_variant:
-                        raise Exception(f"No variant playlist detected: '{manifest_url}', terminating")
-
-                    # get the media manifest
-                    self.variant_pls = self.environment.profileselector.select(self.manifest.playlists,
-                                                                               lambda
-                                                                                   playlist: playlist.stream_info.bandwidth,
-                                                                               self.throughput)
-                    self.logger.debug(
-                        f"profile ID {self.variant_pls.stream_info.program_id} selected (bandwidth: {self.variant_pls.stream_info.bandwidth / 1000 / 1000:.2f} Mbps, resolution: {self.variant_pls.stream_info.resolution}), throughput: {self.throughput / 1000 / 1000:.2f} Mbps")
-
-                    # get variant manifest
-                    self.logger.debug(f"GET '{self.base_url}/{self.variant_pls.uri}'")
-                    with self.client.get(f"{self.base_url}/{self.variant_pls.uri}",
-                                         catch_response=True) as response_media:
-                        response_media.raise_for_status()
-
-                        # parse variant
-                        self.variant = m3u8.M3U8(content=response_media.text, base_uri=self.base_url)
-                        if self.variant.playlist_type != 'VOD':
-                            self.tasks = [HLSLive]
-                            # self.__class__.tasks = [HLSLive]
-                        else:
-                            raise Exception(f"variant playlist type '{self.variant.playlist_type}' not supported!")
-
-                else:
-                    # unknown streaming
-                    raise Exception(f"Unknown manifest: '{response_master.headers['Content-Type']}', terminating")
-
-        except HTTPError as e:
-            self.logger.warning(e)
-        except Exception:
-            self.logger.exception("Exception")
+        self.name = names.get_full_name()
+        self.logger = logging.getLogger(self.name)
 
         self.logger.debug(f"user spawned")
 
@@ -138,11 +82,12 @@ class ABRUser(FastHttpUser):
     wait_time = constant(0)
     host = "http://this.will.be.ignored"
 
+    tasks = [Streaming]
 
 # for testing
 if __name__ == "__main__":
 
-    setup_logging('INFO')
+    setup_logging('DEBUG')
 
     try:
         # setup Environment and Runner
