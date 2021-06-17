@@ -7,7 +7,6 @@ COPY common/ common/
 COPY locustfiles/ locustfiles/
 
 # copy the list of URLs for loadtest
-COPY urllist.csv .
 ENV URLLIST=urllist.csv
 
 # use random profile selection (other methods are min or max)

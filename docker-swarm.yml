@@ -1,6 +1,7 @@
 version: '3.8'
 
 services:
+
   locust-master:
     image: localhost:5000/abrperf
 
@@ -15,8 +16,15 @@ services:
     networks:
      - locust-mgmt
 
+    environment:
+     - PROFILESELECTION=abr
+
+    configs:
+     - source: urllist
+       target: /urllist.csv
+
     extra_hosts:
-      - "es-ls-03:169.254.48.155"
+     - "es-ls-03:169.254.48.155"
 
     # expose WebUI and inter locust communication
     ports:
@@ -24,8 +32,9 @@ services:
      - "5557:5557"
 
     # -H is mandatory but it will be ignored
-    command: -f locustfiles/hlsvodplayer.py --master -H http://it.will.be.ignored
+    command: -f locustfile.py --master -H http://it.will.be.ignored
   
+
   locust-worker:
     image: localhost:5000/abrperf
 
@@ -40,12 +49,23 @@ services:
     networks:
      - locust-perf
 
+    environment:
+     - PROFILESELECTION=abr
+
+    configs:
+     - source: urllist
+       target: /urllist.csv
+
     # avoid DNS storm, list the target FQDNs if possible
     extra_hosts:
-      - "es-ls-03:169.254.48.155"
+     - "es-ls-03:169.254.48.155"
 
     # it will connect locahost:5557 for master
-    command: -f locustfiles/hlsvodplayer.py --worker
+    command: -f locustfile.py --worker
+
+configs:
+  urllist:
+    file: ./urllist.csv
 
 
 networks:
