@@ -3,9 +3,11 @@ import logging
 import resource
 import names
 import platform
-from common import Streaming, ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, URLList
+from common import LiveHLS, ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, URLList
+import m3u8
 
 from locust import constant, events
+from locust.exception import StopUser
 from locust.contrib.fasthttp import FastHttpUser
 from locust.runners import MasterRunner
 import gevent
@@ -84,11 +86,85 @@ class ABRUser(FastHttpUser):
         self.variant = None
         self.variant_pls = None
 
-    # we need to specify these, but they will be ignored
-    wait_time = constant(0)
+        # get a manifest url
+        manifest_url = self.environment.urllist.geturl()
+        self.base_url = os.path.dirname(manifest_url)
+        self.logger.debug(f"URL to open: {manifest_url}")
+
+        # get the master manifest, add user info
+        with self.client.get(
+                f"{manifest_url}&uid={self.name.replace(' ', '_')}",
+                name=manifest_url,
+                headers={'User-Agent': f"Locust/1.0"},
+                catch_response=True) as response_master:
+            if response_master.status_code >= 400:
+                response_master.failure(f"HTTP error {response_master.status_code}, stopping user")
+                raise StopUser()
+
+            # measure initial throughput with manifest
+            self.throughput = len(response_master) * 8 / response_master._request_meta['response_time'] * 1000
+            self.logger.debug(f"throughput: {self.throughput / 1000 / 1000:.2f} Mbps")
+
+            # determine streaming type
+            filename, extension = os.path.splitext(manifest_url)
+            if (extension == '.m3u8' or
+                    extension == '.m3u' or
+                    ('Content-Type' in response_master.headers and response_master.headers['Content-Type'] in [
+                        'application/vnd.apple.mpegurl', 'audio/mpegurl'])):
+                # HLS -- m3u8!
+                self.logger.debug(f"HLS manifest detected")
+
+                # parse playlist
+                self.manifest = m3u8.M3U8(content=response_master.text, base_uri=self.base_url)
+                self.logger.debug(f"HLS v{self.manifest.version}, type: '{self.manifest.playlist_type}'")
+
+                if not self.manifest.is_variant:
+                    response_master.failure(f"No variant playlist detected: '{manifest_url}', stopping user")
+                    raise StopUser()
+
+                # get the media manifest
+                self.variant_pls = self.environment.profileselector.select(self.manifest.playlists,
+                                                                           lambda
+                                                                               playlist: playlist.stream_info.bandwidth,
+                                                                           self.throughput)
+                self.logger.debug(
+                    f"profile ID {self.variant_pls.stream_info.program_id} selected (bandwidth: {self.variant_pls.stream_info.bandwidth / 1000 / 1000:.2f} Mbps, resolution: {self.variant_pls.stream_info.resolution}), throughput: {self.throughput / 1000 / 1000:.2f} Mbps")
+
+                # get variant manifest
+                self.logger.debug(f"GET '{self.base_url}/{self.variant_pls.uri}'")
+                with self.client.get(f"{self.base_url}/{self.variant_pls.uri}",
+                                     headers={'User-Agent': f"Locust/1.0"},
+                                     catch_response=True) as response_media:
+                    response_media.raise_for_status()
+
+                    # parse variant
+                    self.variant = m3u8.M3U8(content=response_media.text, base_uri=self.base_url)
+                    if self.variant.playlist_type != 'VOD':
+                        # start
+                        ABRUser.tasks = [LiveHLS]
+                    else:
+                        response_media.failure(
+                            f"variant playlist type '{self.variant.playlist_type}' not supported, stopping user")
+                        raise StopUser()
+
+            else:
+                # unknown streaming
+                response_master.failure(
+                    f"unknown manifest '{manifest_url}': '{response_master.headers['Content-Type']}', stopping user")
+                raise StopUser()
+
+            self._firstrun = True
+            self._ts_next = None
+            self.logger.debug(f"running {self.__class__.__name__}")
+
+    def on_stop(self):
+        self.logger.debug(f"user terminated")
+
+    # how long to wait between rescheduling Streaming
+    wait_time = constant(1)
     host = "http://this.will.be.ignored"
 
-    tasks = [Streaming]
+    tasks = []
 
 
 # for testing
@@ -116,4 +192,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         env.runner.greenlet.kill()
     except Exception:
-        logging.exception("Exception:")
+        logging.exception("Exception")

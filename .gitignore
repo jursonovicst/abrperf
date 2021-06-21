@@ -1,3 +1,4 @@
-urllist.csv
+*.csv
+!urllist.csv
 /venv
 __pycache__/

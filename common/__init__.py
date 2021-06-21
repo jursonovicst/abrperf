@@ -1,4 +1,3 @@
 from .urllist import URLList
 from .profileselector import *
-
-from .streaming import Streaming
+from .livehls import LiveHLS
