@@ -5,6 +5,9 @@ class ProfileSelector:
     def select(self, playlists, key: callable, throughput: float):
         return random.choice(playlists)
 
+    def __str__(self):
+        return self.__class__.__name__
+
 
 class MinProfileSelector(ProfileSelector):
     def select(self, playlists, key: callable, throughput: float):

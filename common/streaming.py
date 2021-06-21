@@ -15,7 +15,6 @@ class Streaming(TaskSet):
         stops executing that TaskSet (when interrupt() is called, or the user is killed).
         """
 
-
         # get a manifest url
         manifest_url = self.client.environment.urllist.geturl()
         self.user.base_url = os.path.dirname(manifest_url)
@@ -50,7 +49,8 @@ class Streaming(TaskSet):
 
                 # get the media manifest
                 self.variant_pls = self.client.environment.profileselector.select(self.user.manifest.playlists,
-                                                                                  lambda playlist: playlist.stream_info.bandwidth,
+                                                                                  lambda
+                                                                                      playlist: playlist.stream_info.bandwidth,
                                                                                   self.user.throughput)
                 self.user.logger.debug(
                     f"profile ID {self.variant_pls.stream_info.program_id} selected (bandwidth: {self.variant_pls.stream_info.bandwidth / 1000 / 1000:.2f} Mbps, resolution: {self.variant_pls.stream_info.resolution}), throughput: {self.user.throughput / 1000 / 1000:.2f} Mbps")
@@ -67,7 +67,8 @@ class Streaming(TaskSet):
                     if self.user.variant.playlist_type != 'VOD':
                         pass
                     else:
-                        response_media.failure(f"variant playlist type '{self.user.variant.playlist_type}' not supported!")
+                        response_media.failure(
+                            f"variant playlist type '{self.user.variant.playlist_type}' not supported!")
                         self.interrupt()
 
             else:
@@ -84,7 +85,7 @@ class Streaming(TaskSet):
 
     @task
     def segment(self):
-        if True: #TODO: here are the streaming players
+        if True:  # TODO: here are the streaming players
             self.hlslive()
 
     def hlslive(self):
@@ -124,7 +125,8 @@ class Streaming(TaskSet):
 
             # select the next variant playlist
             self.user.variant_pls = self.client.environment.profileselector.select(self.user.manifest.playlists,
-                                                                                   lambda playlist: playlist.stream_info.bandwidth,
+                                                                                   lambda
+                                                                                       playlist: playlist.stream_info.bandwidth,
                                                                                    self.user.throughput)
             self.user.logger.debug(
                 f"profile ID {self.user.variant_pls.stream_info.program_id} selected (bandwidth: {self.user.variant_pls.stream_info.bandwidth / 1000 / 1000:.2f} Mbps, resolution: {self.user.variant_pls.stream_info.resolution}), throughput: {self.user.throughput / 1000 / 1000:.2f} Mbps")

@@ -3,7 +3,7 @@ import logging
 import resource
 import names
 import platform
-from common import Streaming
+from common import Streaming, ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, URLList
 
 from locust import constant, events
 from locust.contrib.fasthttp import FastHttpUser
@@ -12,7 +12,6 @@ import gevent
 from locust.env import Environment
 from locust.stats import stats_printer, stats_history
 from locust.log import setup_logging
-from common import ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, URLList
 
 
 @events.init.add_listener
@@ -21,17 +20,20 @@ def on_locust_init(environment, **kwargs):
     The init event is triggered at the beginning of each Locust process. This is especially useful in distributed mode
     where each worker process (not each user) needs a chance to do some initialization.
     """
-    if isinstance(environment.runner, MasterRunner):
-        logging.debug(f"I'm the master on {platform.node()} node")
-    else:
-        logging.debug(f"I'm a worker or standalone on {platform.node()} node")
 
-        # set the highest limit of open files in the server
-        resource.setrlimit(resource.RLIMIT_NOFILE, resource.getrlimit(resource.RLIMIT_NOFILE))
+    try:
+        # setup logging
+        setup_logging(os.getenv('LOGLEVEL', 'INFO'))
 
-        try:
-            # url reader
-            environment.urllist = URLList(os.getenv('URLLIST', default='urllist.csv'))
+        # init workers
+        if isinstance(environment.runner, MasterRunner):
+            logging.debug(f"I'm the master on {platform.node()} node")
+        else:
+            logging.debug(f"I'm a worker or standalone on {platform.node()} node")
+
+            # set the highest limit of open files in the server for worker
+            resource.setrlimit(resource.RLIMIT_NOFILE, resource.getrlimit(resource.RLIMIT_NOFILE))
+            logging.info(f"rlimit_nofile is {resource.getrlimit(resource.RLIMIT_NOFILE)}")
 
             # profile selector
             method = os.getenv('PROFILESELECTION', 'rnd')
@@ -44,12 +46,29 @@ def on_locust_init(environment, **kwargs):
             else:
                 environment.profileselector = ProfileSelector()
 
-        except Exception:
-            logging.exception("Exception in init")
-            exit(-1)
+            logging.info(f"Using {environment.profileselector}")
+
+            # url reader
+            environment.urllist = URLList(os.getenv('URLLIST', default='urllist.csv'))
+            logging.info(f"Using {environment.urllist.filename} with {environment.urllist.nourls} url(s)")
+
+    except Exception:
+        logging.exception("Exception in init")
+        exit(-1)
 
 
 class ABRUser(FastHttpUser):
+    def __init__(self, environment):
+        super().__init__(environment)
+
+        self.name = names.get_full_name()
+        self.logger = logging.getLogger(self.name)
+
+        self.manifest = None
+        self.base_url = None
+        self.throughput = None
+        self.variant = None
+        self.variant_pls = None
 
     def on_start(self):
         """
@@ -59,16 +78,11 @@ class ABRUser(FastHttpUser):
         stops executing that TaskSet (when interrupt() is called, or the user is killed).
         """
 
-        self.name = names.get_full_name()
         self.manifest = None
         self.base_url = None
         self.throughput = None
-        self.logger = None
         self.variant = None
         self.variant_pls = None
-
-        # create uniq logger
-        self.logger = logging.getLogger(self.name)
 
     # we need to specify these, but they will be ignored
     wait_time = constant(0)
@@ -79,9 +93,6 @@ class ABRUser(FastHttpUser):
 
 # for testing
 if __name__ == "__main__":
-
-    setup_logging('DEBUG')
-
     try:
         # setup Environment and Runner
         env = Environment(user_classes=[ABRUser])
@@ -104,3 +115,5 @@ if __name__ == "__main__":
         env.runner.greenlet.join()
     except KeyboardInterrupt:
         env.runner.greenlet.kill()
+    except Exception:
+        logging.exception("Exception:")

@@ -5,7 +5,6 @@ RUN pip3 install -r requirements.txt
 
 COPY common/ common/
 COPY locustfile.py locustfile.py
-COPY urllist.csv urllist.csv
 
 # copy the list of URLs for loadtest
 ENV URLLIST=urllist.csv
