@@ -119,3 +119,7 @@ kill: 4395: No such process
 kill: 4389: No such process
 kill: 4395: No such process
 ```
+
+## ToDo:
+
+* consider using other reporting: https://www.blazemeter.com/blog/locust-monitoring-with-grafana-in-just-fifteen-minutes

@@ -1,12 +1,14 @@
 import os
 import logging
 import resource
+
+import locust.stats
 import names
 import platform
 from common import LiveHLS, ProfileSelector, ABRProfileSelector, MaxProfileSelector, MinProfileSelector, URLList
 import m3u8
 
-from locust import constant, events
+from locust import constant, events, stats
 from locust.exception import StopUser
 from locust.contrib.fasthttp import FastHttpUser
 from locust.runners import MasterRunner
@@ -14,6 +16,10 @@ import gevent
 from locust.env import Environment
 from locust.stats import stats_printer, stats_history
 from locust.log import setup_logging
+
+# set percentiles
+locust.stats.PERCENTILES_TO_REPORT = list(
+    map(float, os.getenv('PERCENTILES_TO_REPORT', '0.95,0.98,0.99,0.999,0.9999,1.0').split(sep=',')))
 
 
 @events.init.add_listener
@@ -26,6 +32,8 @@ def on_locust_init(environment, **kwargs):
     try:
         # setup logging
         setup_logging(os.getenv('LOGLEVEL', 'INFO'))
+
+        logging.debug(f"Using percentiles {locust.stats.PERCENTILES_TO_REPORT}")
 
         # init workers
         if isinstance(environment.runner, MasterRunner):
