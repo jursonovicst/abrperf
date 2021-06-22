@@ -10,11 +10,15 @@ class URLList:
         self._weights = []
 
         with open(self._filename, newline='') as csvfile:
-            lines = csv.reader(csvfile, delimiter=',', quotechar='"')
+            lines = csv.reader(csvfile, delimiter=',', quotechar='"', skipinitialspace=True)
 
             for row in lines:
                 if len(row) < 2:
                     raise SyntaxError(f"urllist file '{self._filename}' must have two columns: '{', '.join(row)}'!")
+
+                # skip comment lines
+                if row[0].startswith('#'):
+                    continue
 
                 if not row[1].strip().isdigit() or int(row[1]) <= 0:
                     raise ValueError(
@@ -38,6 +42,5 @@ class URLList:
     def filename(self):
         return self._filename
 
-    @property
-    def nourls(self):
+    def __len__(self):
         return len(self._urls)

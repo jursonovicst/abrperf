@@ -3,3 +3,4 @@ m3u8>=0.7.0
 numpy>=1.19.1
 names>=0.3.0
 gevent~=21.1.2
+mpegdash~=0.2.0
