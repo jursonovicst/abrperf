@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+
+  grafana:
+    image: grafana/grafana
+    restart: unless-stopped
+    env_file:
+      - influxdb/grafana.env
+    environment:
+      - no_proxy=localhost,127.0.0.0/8,::1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - influxdb
+    volumes:
+      - grafana-config:/var/lib/grafana
+      - ./grafana/influx.yml:/etc/grafana/provisioning/datasources/influx.yml
+
+  influxdb:
+    image: influxdb:2.0
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8086:8086"
+    volumes:
+      - db-data:/var/lib/influxdb2
+      - db-config:/etc/influxdb2
+      - ./influxdb/scripts:/docker-entrypoint-initdb.d
+    env_file:
+      - influxdb/influxdb.env
+      - influxdb/locust.env
+      - influxdb/grafana.env
+    environment:
+      - INFLUXDB_DATA_QUERY_LOG_ENABLED=false
+
+volumes:
+  db-data:
+  db-config:
+  grafana-config:

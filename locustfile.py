@@ -2,6 +2,7 @@ import os
 import logging
 import queue
 import resource
+import time
 
 import locust.stats
 import names
@@ -21,6 +22,11 @@ from locust.log import setup_logging
 
 from queue import SimpleQueue
 from typing import Dict
+from influxdb import InfluxDBClient
+from influxdb.exceptions import InfluxDBServerError
+
+# silent urllib logging
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 # set percentiles for cli stats
 locust.stats.PERCENTILES_TO_REPORT = list(
@@ -37,6 +43,7 @@ def on_locust_init(environment, **kwargs):
     Event arguments:
     :param environment: Environment instance
     """
+    environment.reportergreenlet = None
 
     try:
         # setup logging
@@ -70,13 +77,30 @@ def on_locust_init(environment, **kwargs):
             environment.urllist = URLList(os.getenv('URLLIST', default='urllist.csv'))
             logging.info(f"Using {environment.urllist.filename} with {len(environment.urllist)} url(s)")
 
+            # influx connection for reporting
+            environment.influxdbclient = InfluxDBClient(os.getenv('INFLUXHOST', '127.0.0.1'),
+                                                        int(os.getenv('INFLUXPORT', '8086')),
+                                                        os.getenv('INFLUXUSERNAME', 'locust'),
+                                                        os.getenv('INFLUXPASSWORD', 'locust12'),
+                                                        os.getenv('INFLUXDATABASE', 'locust'),
+                                                        proxies={})
+            environment.influxdbclient.ping()
+
             # event handler for reporting
             environment.queue = SimpleQueue()
             environment.events.request.add_listener(on_request)
-            gevent.spawn(reporter, environment)
+            environment.reportergreenlet = gevent.spawn(reporter, environment)
 
+            # silence stats logger
+            # logging.getLogger('locust.stats_logger').setLevel(logging.ERROR)
+
+    except InfluxDBServerError as e:
+        logging.error(f"Cannot connect to influxdb: {e}")
+        exit(-1)
     except Exception:
         logging.exception("Exception in init")
+        if environment.reportergreenlet:
+            gevent.kill(environment.reportergreenlet)
         exit(-1)
 
 
@@ -87,6 +111,9 @@ def on_locust_quitting(environment, **kwargs):
     Event arguments:
     :param environment: Environment instance
     """
+    if environment.reportergreenlet:
+        gevent.wait(environment.reportergreenlet)
+    environment.influxdbclient.close()
     pass
 
 
@@ -101,34 +128,56 @@ def on_request(request_type: str, name: str, response_time: int, response_length
     :param response: Response object (e.g. a :py:class:`requests.Response`)
     :param context: :ref:`User/request context <request_context>`
     :param exception: Exception instance that was thrown. None if request was successful.
+    {
+        "measurement": "cpu_load_short",
+        "tags": {
+            "host": "server01",
+            "region": "us-west"
+        },
+        "time": "2009-11-10T23:00:00Z",
+        "fields": {
+            "value": 0.64
+        }
+    }
     """
+
     if 'queue' in context:
-        context['queue'].put_nowait({'request_type': request_type, 'name': name, 'response_time': response_time,
-                                     'response_length': response_length, 'status_code': response.status_code,
-                                     'exception': str(exception)})
-
-
-#    with open('tom.txt', 'a') as f:
-#        f.write(f"{context, request_type, name, response_time, response_length, response.status_code, context, exception}\n")
+        context['queue'].put_nowait({'measurement': 'request',
+                                     'tags': {
+                                         'name': name,
+                                         'server': platform.node(),
+                                         'request_type': request_type,
+                                         'status_code': response.status_code,
+                                         'exception': str(exception)
+                                     },
+                                     'time': time.time_ns(),
+                                     'fields': {
+                                         'response_time': response_time,
+                                         'response_length': response_length
+                                     }
+                                     })
 
 
 def reporter(environment):
-    # build chunk while not exiting
+    # build chunk while running
     while environment.runner.state not in [STATE_STOPPING, STATE_STOPPED, STATE_CLEANUP]:
 
-        chunk = []
-        # get reports, limit chunk size to 100,
-        while environment.runner.state not in [STATE_STOPPING, STATE_STOPPED, STATE_CLEANUP] and len(chunk) < 100:
+        json_body = []
+        # get reports, limit chunk size to 100 while running
+        while environment.runner.state not in [STATE_STOPPING, STATE_STOPPED, STATE_CLEANUP] and len(json_body) < 100:
             try:
-                chunk.append(environment.queue.get(block=True, timeout=0.2))
+                json_body.append(environment.queue.get(block=True, timeout=0.2))
             except queue.Empty:
-                # if there is no more report within 0.2s, close it
+                # if there is no more report within 0.2s, write it
                 break
+            except Exception:
+                logging.exception(f"Exception during writing logs ")
 
         # send reports
-        with open('tom.txt', 'a') as f:
-            for item in chunk:
-                f.write(f"{item}\n")
+        try:
+            environment.influxdbclient.write_points(json_body)
+        except Exception:
+            logging.exception(f"Exception during writing logs ")
 
 
 class ABRUser(FastHttpUser):
@@ -302,7 +351,7 @@ if __name__ == "__main__":
         env.create_local_runner()
 
         # start a greenlet that periodically outputs the current stats
-        gevent.spawn(stats_printer(env.stats))
+        # gevent.spawn(stats_printer(env.stats))
 
         # start a greenlet that save current stats to history
         gevent.spawn(stats_history, env.runner)
