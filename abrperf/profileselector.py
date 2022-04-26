@@ -1,7 +1,9 @@
 import random
+from abc import ABC, abstractmethod
 
 
-class ProfileSelector:
+class ProfileSelector(ABC):
+    @abstractmethod
     def select(self, items, key: callable, throughput: float, condition: callable = lambda x: True):
         return random.choice(list(filter(condition, items)))
 
